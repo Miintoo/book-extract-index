@@ -413,6 +413,38 @@ export default function App() {
     [editEntries, file]
   );
 
+  const downloadPdf = useCallback(async () => {
+    if (editEntries.length === 0) return;
+    if (!API_BASE_URL) {
+      setError(
+        "서버 주소가 설정되지 않았습니다. Render 클라이언트 서비스 환경변수에 VITE_API_BASE_URL을 설정하세요."
+      );
+      return;
+    }
+    try {
+      const name = baseName(file);
+      const entries = editEntries.map(({ level, title, approxPage }) => ({
+        level,
+        title,
+        approxPage,
+      }));
+      const res = await fetch(apiFetchUrl("/api/toc-pdf"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: `${name} 목차`, entries }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        setError(`PDF 생성 실패 (HTTP ${res.status}): ${t.slice(0, 200)}`);
+        return;
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, `${name}-toc.pdf`);
+    } catch {
+      setError("PDF 다운로드 중 네트워크 오류가 발생했습니다.");
+    }
+  }, [editEntries, file]);
+
   const addEntryAtEnd = useCallback(
     () =>
       setEditEntries((prev) => [
@@ -827,6 +859,13 @@ export default function App() {
                             onClick={() => downloadAs("csv")}
                           >
                             CSV
+                          </button>
+                          <button
+                            type="button"
+                            className="dl-btn"
+                            onClick={() => void downloadPdf()}
+                          >
+                            PDF
                           </button>
                         </div>
                       )}

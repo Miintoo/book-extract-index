@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "https://book-extract-index",
+        target: "https://book-extract-index.onrender.com/",
         changeOrigin: true,
       },
     },

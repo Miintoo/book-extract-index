@@ -10,6 +10,7 @@ import express from "express";
 import multer from "multer";
 import { pdf } from "pdf-to-img";
 import sharp from "sharp";
+import PDFDocument from "pdfkit";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "..", ".env") });
@@ -29,6 +30,8 @@ app.use(
       : true,
   })
 );
+
+app.use(express.json({ limit: "2mb" }));
 
 // Render/브라우저에서 '/'로 접근했을 때도 상태를 확인할 수 있게 합니다.
 app.get("/", (_req, res) => {
@@ -269,6 +272,104 @@ app.get("/api/health", (_req, res) => {
     hasGemini: Boolean(genAI),
     model: GEMINI_MODEL,
   });
+});
+
+app.post("/api/toc-pdf", async (req, res) => {
+  /** @type {{ entries?: unknown; title?: unknown }} */
+  const body = req.body ?? {};
+  const entriesRaw = body.entries;
+  if (!Array.isArray(entriesRaw)) {
+    return res.status(400).json({ error: "entries 배열이 필요합니다." });
+  }
+
+  const title =
+    typeof body.title === "string" && body.title.trim()
+      ? body.title.trim().slice(0, 120)
+      : "Table of Contents";
+
+  const cleaned = entriesRaw
+    .map((e) => {
+      const level = Number.parseInt(String(e?.level ?? ""), 10);
+      const title = String(e?.title ?? "").trim();
+      const approxPageRaw = e?.approxPage;
+      const approxPage =
+        approxPageRaw == null || approxPageRaw === ""
+          ? null
+          : Number.parseInt(String(approxPageRaw), 10);
+      if (!title) return null;
+      return {
+        level: Number.isFinite(level) ? Math.min(6, Math.max(1, level)) : 1,
+        title: title.slice(0, 200),
+        approxPage:
+          approxPage == null || Number.isNaN(approxPage) || approxPage < 1
+            ? null
+            : approxPage,
+      };
+    })
+    .filter(Boolean);
+
+  const doc = new PDFDocument({
+    size: "A4",
+    margins: { top: 56, bottom: 56, left: 56, right: 56 },
+    info: { Title: title },
+  });
+
+  const chunks = [];
+  doc.on("data", (c) => chunks.push(c));
+  doc.on("error", (err) => {
+    console.error(err);
+  });
+
+  doc.fontSize(18).font("Helvetica-Bold").text(title, { align: "left" });
+  doc.moveDown(0.6);
+  doc
+    .fontSize(10)
+    .font("Helvetica")
+    .fillColor("#444")
+    .text(`Generated at ${new Date().toISOString()}`);
+  doc.moveDown(1.0);
+
+  doc.fillColor("#111");
+
+  const usableWidth =
+    doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const rightX = doc.page.margins.left + usableWidth;
+
+  for (const row of cleaned) {
+    const indent = (row.level - 1) * 16;
+    const leftX = doc.page.margins.left + indent;
+    const pageStr = row.approxPage != null ? String(row.approxPage) : "";
+
+    // Title
+    doc.fontSize(row.level === 1 ? 12 : 11);
+    doc.font(row.level === 1 ? "Helvetica-Bold" : "Helvetica");
+
+    const yBefore = doc.y;
+    doc.text(row.title, leftX, yBefore, {
+      width: usableWidth - indent - (pageStr ? 28 : 0),
+      continued: false,
+    });
+
+    // Page number on same first line (best-effort)
+    if (pageStr) {
+      const y = yBefore;
+      doc.fontSize(10).font("Helvetica").fillColor("#555");
+      doc.text(pageStr, rightX - 6, y, { align: "right", width: 28 });
+      doc.fillColor("#111");
+    }
+
+    doc.moveDown(0.25);
+  }
+
+  doc.end();
+
+  const pdfBuffer = await new Promise((resolve) => {
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'attachment; filename="toc.pdf"');
+  res.status(200).send(pdfBuffer);
 });
 
 app.post("/api/detect-toc-pages", upload.single("file"), async (req, res) => {
