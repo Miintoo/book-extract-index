@@ -30,6 +30,11 @@ app.use(
   })
 );
 
+// Render/브라우저에서 '/'로 접근했을 때도 상태를 확인할 수 있게 합니다.
+app.get("/", (_req, res) => {
+  res.status(200).send("book-list-maker server is running. /api/health 를 확인하세요.");
+});
+
 const geminiApiKey = process.env.GEMINI_API_KEY?.trim() || null;
 const genAI = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
