@@ -179,6 +179,12 @@ export default function App() {
   const onDetect = useCallback(async () => {
     setError(null);
     setResult(null);
+    if (!API_BASE_URL) {
+      setError(
+        "서버 주소가 설정되지 않았습니다. Render 클라이언트 서비스 환경변수에 VITE_API_BASE_URL=https://book-extract-index.onrender.com 를 추가한 뒤 재배포하세요."
+      );
+      return;
+    }
     if (!file) {
       setError("PDF 파일을 선택하세요.");
       return;
@@ -214,7 +220,8 @@ export default function App() {
       const previews = coercePreviewArray((data as any).previews);
       if (!previews) {
         setError(
-          "서버 응답 형식이 올바르지 않습니다(previews). Render 로그를 확인해 주세요."
+          `서버 응답 형식이 올바르지 않습니다(previews). (HTTP ${res.status}) 응답 앞부분: ` +
+            bodyText.slice(0, 180)
         );
         return;
       }
@@ -243,6 +250,12 @@ export default function App() {
     }
     if (!detectResult) {
       setError("먼저「목차 후보 페이지 찾기」를 실행하세요.");
+      return;
+    }
+    if (!API_BASE_URL) {
+      setError(
+        "서버 주소가 설정되지 않았습니다. Render 클라이언트 서비스 환경변수에 VITE_API_BASE_URL을 설정하세요."
+      );
       return;
     }
     const maxP =
@@ -282,7 +295,8 @@ export default function App() {
       const previews = coercePreviewArray((data as any).previews);
       if (!previews) {
         setError(
-          "서버 응답 형식이 올바르지 않습니다(previews). Render 로그를 확인해 주세요."
+          `서버 응답 형식이 올바르지 않습니다(previews). (HTTP ${res.status}) 응답 앞부분: ` +
+            bodyText.slice(0, 180)
         );
         return;
       }
