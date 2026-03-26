@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -14,6 +15,9 @@ import PDFDocument from "pdfkit";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "..", ".env") });
+
+/** PDF 한글 출력용 (Helvetica 등 기본 폰트는 한글 미지원 → 깨짐) */
+const KR_SANS_FONT = join(__dirname, "..", "fonts", "NotoSansKR-Regular.otf");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -282,10 +286,17 @@ app.post("/api/toc-pdf", async (req, res) => {
     return res.status(400).json({ error: "entries 배열이 필요합니다." });
   }
 
+  if (!existsSync(KR_SANS_FONT)) {
+    return res.status(500).json({
+      error:
+        "PDF 한글 폰트가 서버에 없습니다. 배포에 server/fonts/NotoSansKR-Regular.otf 가 포함되는지 확인하세요.",
+    });
+  }
+
   const title =
     typeof body.title === "string" && body.title.trim()
       ? body.title.trim().slice(0, 120)
-      : "Table of Contents";
+      : "목차";
 
   const cleaned = entriesRaw
     .map((e) => {
@@ -320,13 +331,13 @@ app.post("/api/toc-pdf", async (req, res) => {
     console.error(err);
   });
 
-  doc.fontSize(18).font("Helvetica-Bold").text(title, { align: "left" });
+  doc.fontSize(18).font(KR_SANS_FONT).text(title, { align: "left" });
   doc.moveDown(0.6);
   doc
     .fontSize(10)
-    .font("Helvetica")
+    .font(KR_SANS_FONT)
     .fillColor("#444")
-    .text(`Generated at ${new Date().toISOString()}`);
+    .text(`생성 시각: ${new Date().toISOString()}`);
   doc.moveDown(1.0);
 
   doc.fillColor("#111");
@@ -340,9 +351,9 @@ app.post("/api/toc-pdf", async (req, res) => {
     const leftX = doc.page.margins.left + indent;
     const pageStr = row.approxPage != null ? String(row.approxPage) : "";
 
-    // Title
-    doc.fontSize(row.level === 1 ? 12 : 11);
-    doc.font(row.level === 1 ? "Helvetica-Bold" : "Helvetica");
+    // Title (굵은 전용 OTF 없음 → 레벨 1은 글자 크기로만 구분)
+    doc.fontSize(row.level === 1 ? 12.5 : 11);
+    doc.font(KR_SANS_FONT);
 
     const yBefore = doc.y;
     doc.text(row.title, leftX, yBefore, {
@@ -353,7 +364,7 @@ app.post("/api/toc-pdf", async (req, res) => {
     // Page number on same first line (best-effort)
     if (pageStr) {
       const y = yBefore;
-      doc.fontSize(10).font("Helvetica").fillColor("#555");
+      doc.fontSize(10).font(KR_SANS_FONT).fillColor("#555");
       doc.text(pageStr, rightX - 6, y, { align: "right", width: 28 });
       doc.fillColor("#111");
     }
