@@ -7,6 +7,16 @@ type TocEntry = {
   approxPage: number | null;
 };
 
+const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(
+  /\/+$/,
+  ""
+);
+
+function apiFetchUrl(path: string) {
+  // path should start with "/api/..."
+  return `${API_BASE_URL}${path}`;
+}
+
 type ApiOk = {
   meta: {
     pagesAnalyzed: number;
@@ -177,7 +187,7 @@ export default function App() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/detect-toc-pages", {
+      const res = await fetch(apiFetchUrl("/api/detect-toc-pages"), {
         method: "POST",
         body: fd,
       });
@@ -251,7 +261,7 @@ export default function App() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("pages", JSON.stringify(nums));
-      const res = await fetch("/api/page-previews", {
+      const res = await fetch(apiFetchUrl("/api/page-previews"), {
         method: "POST",
         body: fd,
       });
@@ -440,7 +450,7 @@ export default function App() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("pages", JSON.stringify(finalPageNumbers));
-      const res = await fetch("/api/extract-toc", {
+      const res = await fetch(apiFetchUrl("/api/extract-toc"), {
         method: "POST",
         body: fd,
       });
