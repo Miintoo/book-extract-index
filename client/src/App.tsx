@@ -35,6 +35,26 @@ type DetectOk = {
 
 const ABS_MAX_SPAN = 40;
 
+function isPreviewItem(x: unknown): x is PreviewItem {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.pageIndex === "number" &&
+    typeof o.mimeType === "string" &&
+    typeof o.data === "string"
+  );
+}
+
+function coercePreviewArray(x: unknown): PreviewItem[] | null {
+  if (!Array.isArray(x)) return null;
+  const out: PreviewItem[] = [];
+  for (const item of x) {
+    if (!isPreviewItem(item)) return null;
+    out.push(item);
+  }
+  return out;
+}
+
 function parseManualPages(s: string, maxPage: number): number[] {
   const parts = s.split(/[,，\s]+/).map((x) => x.trim()).filter(Boolean);
   const seen = new Set<number>();
@@ -181,11 +201,18 @@ export default function App() {
         setError(data.error);
         return;
       }
+      const previews = coercePreviewArray((data as any).previews);
+      if (!previews) {
+        setError(
+          "서버 응답 형식이 올바르지 않습니다(previews). Render 로그를 확인해 주세요."
+        );
+        return;
+      }
       const ok = data as DetectOk;
-      setDetectResult(ok);
+      setDetectResult({ ...ok, previews });
       setPdfTotalPagesHint(ok.pdfTotalPages);
       const init: Record<number, boolean> = {};
-      for (const pr of ok.previews) {
+      for (const pr of previews) {
         init[pr.pageIndex] = true;
       }
       setPageOk(init);
@@ -242,10 +269,17 @@ export default function App() {
         setError(data.error ?? `요청 실패 (${res.status})`);
         return;
       }
+      const previews = coercePreviewArray((data as any).previews);
+      if (!previews) {
+        setError(
+          "서버 응답 형식이 올바르지 않습니다(previews). Render 로그를 확인해 주세요."
+        );
+        return;
+      }
       setPdfTotalPagesHint(data.pdfTotalPages);
       setManualPreviews((prev) => {
         const map = new Map(prev.map((p) => [p.pageIndex, p]));
-        for (const p of data.previews ?? []) {
+        for (const p of previews) {
           map.set(p.pageIndex, p);
         }
         return [...map.values()].sort((a, b) => a.pageIndex - b.pageIndex);
