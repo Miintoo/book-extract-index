@@ -1,0 +1,18 @@
+{
+  "name": "book-list-maker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PDF 목차 추출 (클라이언트 + 서버)",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "npm run start -w server"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
